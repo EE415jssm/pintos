@@ -8,6 +8,7 @@
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -18,7 +19,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-struct lock* filesys_lock;
+extern struct lock filesys_lock;
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -91,7 +92,6 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (token, &if_.eip, &if_.esp);
-
   sema_up(&thread_current()->load_sema);
 
   /* If load failed, quit. */
@@ -581,14 +581,14 @@ int process_add_file(struct file *f){
   if(f==NULL){
     return -1;
   }
-  lock_acquire(filesys_lock);
+  lock_acquire(&filesys_lock);
   struct thread *t;
   int fd;
   t=thread_current();
   fd=t->next_fd;
   t->next_fd+=1;
   t->fdt[fd] = f;
-  lock_release(filesys_lock);
+  lock_release(&filesys_lock);
   return fd;
 }
 struct file *process_get_file(int fd){
@@ -600,7 +600,7 @@ struct file *process_get_file(int fd){
   return t->fdt[fd];
 }
 void process_close_file(int fd){
-  lock_acquire(filesys_lock);
+  lock_acquire(&filesys_lock);
   struct thread *t;
   t  = thread_current();
   if(fd<=1 || fd>=t->next_fd){
@@ -608,5 +608,5 @@ void process_close_file(int fd){
   }
   file_close(t->fdt[fd]);
   t->fdt[fd]=NULL;
-  lock_release(filesys_lock);
+  lock_release(&filesys_lock);
 }

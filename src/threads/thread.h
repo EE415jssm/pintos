@@ -101,7 +101,6 @@ struct thread
     struct list_elem child_elem;
 
     struct semaphore exit_sema;
-    int exit_status;
     struct semaphore load_sema;
 
     struct list_elem allelem;           /* List element for all threads list. */

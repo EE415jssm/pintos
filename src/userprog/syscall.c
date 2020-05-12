@@ -8,7 +8,7 @@
 #include "devices/shutdown.h"
 #include "filesys/filesys.h"
 
-extern struct lock filesys_lock;
+struct lock filesys_lock;
 
 static void syscall_handler (struct intr_frame *);
 bool create(const char* file, unsigned initial_size);
@@ -22,24 +22,25 @@ void check_address(void* address) {
 void get_argument(void * esp, int * arg, int count) {
   int i;
   for (i = 1; i <= count; i++) {
+    check_address (esp + 4 * i);
     *(arg + 4 * (i - 1)) = *((int**)(esp + 4 * i));
   }
-  check_address (arg + 4 * count);
 }
 
 void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init(&filesys_lock);
 }
 
 static void
-syscall_handler (struct intr_frame *f UNUSED) 
+syscall_handler (struct intr_frame *f) 
 {
   int * arg;
   int syscall;
 
-  syscall = *((int *)f->esp);
+  syscall = *((int *)(f->esp));
 
   switch(syscall) {
   case (SYS_HALT):
@@ -146,6 +147,7 @@ int read(int fd, void *buffer, unsigned size){
   else{
     struct file *f = process_get_file(fd);
     if(f==NULL){
+      lock_release(&filesys_lock);
       return -1;
     }
     size = file_read(f, buffer, size);
@@ -193,12 +195,12 @@ void close(int fd){
   process_close_file(fd);
 }
 
-int exec(const *file_name) {
+tid_t exec(const *file_name) {
   int child_pid;
   child_pid = process_execute(file_name);
-  if (child_pid == -1) return -1;
-  sema_down(&thread_current()->load_sema);
-  if (thread_current()->is_loaded == -1) return -1;
+  struct thread* child = get_child_process(child_pid);
+  sema_down(&child->load_sema);
+  if (child->is_loaded == -1) return -1;
   return child_pid;
 }
 
