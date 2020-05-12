@@ -37,7 +37,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  int * arg;
+  int * arg = (void *)malloc(4*sizeof(void *));
   int syscall;
 
   syscall = *((int *)(f->esp));
@@ -45,6 +45,7 @@ syscall_handler (struct intr_frame *f)
   switch(syscall) {
   case (SYS_HALT):
     halt();
+    free(arg);
     break;
   case (SYS_EXIT):
     get_argument(f->esp, arg, 1);
@@ -54,51 +55,62 @@ syscall_handler (struct intr_frame *f)
     get_argument(f->esp, arg, 1);
     check_address((char *)*arg);
     f->eax = exec((char *)*arg);
+    free(arg);
     break;
   case (SYS_WAIT):
     get_argument(f->esp, arg, 1);
     f->eax = wait((int)*arg);
+    free(arg);
     break;
   case (SYS_CREATE):
     get_argument(f->esp, arg, 2);
     check_address((char *)*arg);
     f->eax = create((char *)*arg, (unsigned)*(arg + 4));
+    free(arg);
     break;
   case (SYS_REMOVE):
     get_argument(f->esp, arg, 1);
     check_address((char *)*arg);
     f->eax = remove((char *)*arg);
+    free(arg);
     break;
   case (SYS_OPEN):
     get_argument(f->esp, arg, 1);
     check_address((char *)*arg);
     f->eax = open((char *)*arg);
+    free(arg);
     break;
   case (SYS_FILESIZE):
     get_argument(f->esp, arg, 1);
     f->eax = filesize(*arg);
+    free(arg);
     break;
   case (SYS_READ):
     get_argument(f->esp, arg, 3);
     check_address((void *)*(arg + 4));
     f->eax = read(*arg, (void *)*(arg + 4), (unsigned)*(arg + 8));
+    free(arg);
     break;
   case (SYS_WRITE):
     get_argument(f->esp, arg, 3);
     check_address((void *)*(arg + 4));
     f->eax = write(*arg, (void *)*(arg + 4), (unsigned)*(arg + 8));
+    free(arg);
     break;
   case (SYS_SEEK):
     get_argument(f->esp, arg, 2);
     seek(*arg, (unsigned)*(arg + 4));
+    free(arg);
     break;
   case (SYS_TELL):
     get_argument(f->esp, arg, 1);
     f->eax = tell(*arg);
+    free(arg);
     break;
   case (SYS_CLOSE):
     get_argument(f->esp, arg, 1);
     close(*arg);
+    free(arg);
     break;
   default:
     thread_exit ();
