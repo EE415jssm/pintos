@@ -19,16 +19,16 @@ void check_address(void* address) {
   if (!is_user_vaddr(address)) exit(-1);
 }
 
-void get_argument(void * esp, int * arg, int count) {
+void get_argument(uint32_t * esp, uint32_t * arg, int count) {
   int i;
   for (i = 1; i <= count; i++) {
     check_address (esp + 4 * i);
-    *(arg + 4 * (i - 1)) = *((int**)(esp + 4 * i));
+    *(arg + 4 * (i - 1)) = *(esp + 4 * i);
   }
 }
 
 void
-syscall_init (void) 
+syscall_init(void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   lock_init(&filesys_lock);
@@ -37,7 +37,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  int * arg = (void *)malloc(4*sizeof(void *));
+  int * arg = (void *)malloc(4 * sizeof(void *));
   int syscall;
 
   syscall = *((int *)(f->esp));
@@ -49,7 +49,7 @@ syscall_handler (struct intr_frame *f)
     break;
   case (SYS_EXIT):
     get_argument(f->esp, arg, 1);
-    exit(*arg);
+    exit(*((int *)arg));
     break;
   case (SYS_EXEC):
     get_argument(f->esp, arg, 1);
@@ -59,7 +59,7 @@ syscall_handler (struct intr_frame *f)
     break;
   case (SYS_WAIT):
     get_argument(f->esp, arg, 1);
-    f->eax = wait((int)*arg);
+    f->eax = wait(*(int *)arg);
     free(arg);
     break;
   case (SYS_CREATE):
@@ -82,34 +82,34 @@ syscall_handler (struct intr_frame *f)
     break;
   case (SYS_FILESIZE):
     get_argument(f->esp, arg, 1);
-    f->eax = filesize(*arg);
+    f->eax = filesize(*(int *)arg);
     free(arg);
     break;
   case (SYS_READ):
     get_argument(f->esp, arg, 3);
-    check_address((void *)*(arg + 4));
-    f->eax = read(*arg, (void *)*(arg + 4), (unsigned)*(arg + 8));
+    check_address(*(arg + 4));
+    f->eax = read(*(int *)arg, *(arg + 4), (unsigned)*(arg + 8));
     free(arg);
     break;
   case (SYS_WRITE):
     get_argument(f->esp, arg, 3);
-    check_address((void *)*(arg + 4));
-    f->eax = write(*arg, (void *)*(arg + 4), (unsigned)*(arg + 8));
+    check_address(*(arg + 4));
+    f->eax = write(*(int *)arg, *(arg + 4), (unsigned)*(arg + 8));
     free(arg);
     break;
   case (SYS_SEEK):
     get_argument(f->esp, arg, 2);
-    seek(*arg, (unsigned)*(arg + 4));
+    seek(*(int *)arg, (unsigned)*(arg + 4));
     free(arg);
     break;
   case (SYS_TELL):
     get_argument(f->esp, arg, 1);
-    f->eax = tell(*arg);
+    f->eax = tell(*(int *)arg);
     free(arg);
     break;
   case (SYS_CLOSE):
     get_argument(f->esp, arg, 1);
-    close(*arg);
+    close(*(int *)arg);
     free(arg);
     break;
   default:

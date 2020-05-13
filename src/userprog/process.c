@@ -19,6 +19,8 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+/* A lock which is used for various file handling. 
+   It is originally defined at userprog/syscall.h */
 extern struct lock filesys_lock;
 
 static thread_func start_process NO_RETURN;
@@ -42,6 +44,8 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  /* Parse the file name and use only this argument as a first
+     Parameter of thread_create. */
   file_name = strtok_r(file_name, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
@@ -68,7 +72,10 @@ start_process (void *file_name_)
 
   token = command;
 
-  for (token = strtok_r(token, " ", &save_ptr); token != NULL; 
+  /* Count arguments number by using strtok_r. Since, we don't
+     know a number of parameters, I first get tha argc and then,
+     allocate appropriate size of array. */
+  for (token = strtok_r(token, " ", &save_ptr); token != NULL;
        token = strtok_r(NULL, " ", &save_ptr)) {
     arg_cnt++;    
   }
@@ -78,6 +85,8 @@ start_process (void *file_name_)
   token = command;
   arg_cnt = 0;
 
+  /* Parse the command line by using strtok_r.
+     The parsed tokens saved at the array parsed_token*/
   for (token = strtok_r(token, " ", &save_ptr); token != NULL; 
        token = strtok_r(NULL, " ", &save_ptr)) {
     parsed_token[arg_cnt] = token;
@@ -119,6 +128,17 @@ start_process (void *file_name_)
   NOT_REACHED ();
 }
 
+/* save_arg: save arguments in the parsed token array.
+   return value: void
+   input parameter: char** parse, int count, void **esp
+   From the top of the stack, push the parameters.
+   Then, allign esp address by pushing 0s to the stack.
+   You can mark the finish of args inserting by pushing
+   NULL pointer on the allign bytes.
+   On the NULL pointer, it saves address of each arguments.
+   The address of array of arguments argv also saved in the stack.
+   Finally, it pushes argc to the stack and fake address.
+   */
 void save_arg (char **parse, int count, void **esp)
 {
   char* arg_base = *esp;
@@ -561,6 +581,11 @@ install_page (void *upage, void *kpage, bool writable)
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
+/* get_child_process: get descriptor of child process via pid.
+   return value: struct thread* 
+   input parameter: int pid
+   It explores child_list of process and compare its tid and input pid.
+   If does are matched, return the struct thread.*/
 struct thread* get_child_process (int pid) {
   struct list_elem *e;
   struct thread *t, *child;
@@ -573,10 +598,18 @@ struct thread* get_child_process (int pid) {
   return NULL;
 }
 
+
+/* Remove child process from the child_list of parent process */
 void remove_child_process (struct thread *child) {
   list_remove(&child->child_elem);
   palloc_free_page(child);
 }
+
+/* Process_add_file: add file to the file description table
+   return value: int (success: fd, fail: -1)
+   input parameter: struct file *f
+   Allocate a file to file descriptor table of current thread.
+   To prevent concurrent file insertion, it uses lock.*/
 int process_add_file(struct file *f){
   if(f==NULL){
     return -1;
@@ -591,6 +624,13 @@ int process_add_file(struct file *f){
   lock_release(&filesys_lock);
   return fd;
 }
+
+/* process_get_file: get file from file descriptor table with fd.
+   return value: struct file*
+   input parameter: int fd
+   If input fd is less or equal than 1 or it's larger than the highest
+   fd number, it returns NULL pointer.
+   */
 struct file *process_get_file(int fd){
   struct thread *t;
   t = thread_current();
@@ -599,6 +639,14 @@ struct file *process_get_file(int fd){
   }
   return t->fdt[fd];
 }
+
+/* process_close_file: close the file with fd
+   return value: void
+   input parameter: int fd
+   If the target file's fd is 1 or less than 1 or is larger than
+   the maximum value, it returns.
+   To prevent double close of file, it uses lock structure and control
+   the multiple access of files. */
 void process_close_file(int fd){
   lock_acquire(&filesys_lock);
   struct thread *t;
